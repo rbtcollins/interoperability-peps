@@ -15,20 +15,20 @@ Post-History: 03-Aug-2015
 Abstract
 ========
 
-The canonical method for installing packages is to use pip, whether that is
-referencing PyPI or a local repository. A limitation of the current install
-ecosystem is the relationship with operating-system level dependencies. This
+The canonical method for installing Python packages is to use pip, whether that
+is referencing PyPI or a local repository. A limitation of the current install
+ecosystem is the relationship with non-Python dependencies. This
 can result in compilation failures or execution failures. Package maintainers
 may wish to specify the requirements to avoid this issue, and users may
-appreciate earlier stopping and more informative messages about their system.
+appreciate earlier and more informative messages about their system.
 
 The responsibility of pip is to stop early and provide useful information about
 missing and not automatically installable dependecies. Ideally it would provide
 a useful user message about how to obtain the required dependencies. The
 responsibility for actual installation lies with the user at this time.
 
-This PEP specifies an extension to the requirements sections of setup.py
-which will allow authors to express these requirements cleanly. In the
+This PEP proposes a mechanism for extending the requirements section of setup.py
+which will allow authors to express non-Python requirements cleanly. In the
 implementation section, a discussion of how this is used to solved problems
 is given.
 
@@ -53,12 +53,11 @@ target specifiers are included.
        }
     )
 
-It is believe this syntax provides one obvious way to do things which does not
-multiply the complexity or parts beyond those necessary to achieve the goal.
 
-In this example, the user will be presented with a useful install message and
-a process that exist early, as opposed to relying on the compiler to fail
-and provide an error message that may not be readily understood by most users
+If the user does not have the required dependencies, the user will be presented
+with a useful install message and a process that exits early, as opposed to
+relying on the compiler to fail and provide an error message that may not be
+readily understood by most users.
 
 The mechanism of referencing failed dependencies such as 'kernel.h' to useful
 user messages regarding the actual operating system packages that are relevant
@@ -68,9 +67,9 @@ handling that referencing outside of setup.py.
 Rationale
 =========
 
-Different environment context have implications for the building, testing,
+Differences between environments have implications for the building, testing,
 installing and execution of software. There are two sides to this coin. First,
-in some environments, additional python packages are needed. Secondly,
+in some environments, additional Python packages are needed. Secondly,
 it is useful to specify, e.g., the apt or yum package names which need to be
 in place prior to continuing. The syntax proposed here allows for a readable
 and consise expression of these requirements.
@@ -184,7 +183,7 @@ Types of environment and vendor
 
 Anaconda is not an operation system. Neither is yum, neither is apt. It is the
 maintainer of the packaging system which is pertinent, and the current operating
-system is an imperfect indicator of the relevant package manager. 
+system is an imperfect indicator of the relevant package manager.
 
 
 Directories, categories and locations of dependency files
@@ -201,13 +200,51 @@ or customised locations.
 
 
 
-Alternative Syntax Concept
+Alternative Syntax Concepts
 ==========================
 
-One early straw man for the syntax is included here for reference during
-discussions. The chosen approach is based off approaching a small dsl for
-handling the specification, which may also point to future directions that
-could be taken in requirements.txt.
+Concept 0: Separated external and non-external dependencies
+-----------------------------------------------------------
+
+As per abstract
+
+::
+
+    setup(
+        name='uses_scipy_with_atlas_extension'
+        install_requires='yaml, scipy[atlas]',
+        setup_requires='pyfortran',
+        external={
+          setup=[
+            'bin!fortran:dist_name=='ubuntu',
+            'include!kernel.h',
+            'include!liblas.h',
+          ],
+          install=[
+              'lib!liblas1.so'
+          ],
+       }
+    )
+
+Concept 1: Integrate external and non-external dependencies
+-----------------------------------------------------------
+
+::
+
+    setup(
+        name='uses_scipy_with_atlas_extension'
+        install_requires=['yaml', 'scipy[atlas]', 'lib!libblas1.so'],
+        setup_requires=[
+            'pyfortran',
+            'bin!fortran:dist_name=="ubuntu"',
+            'include!kernel.h',
+            'include!liblas.h',
+          ],
+    )
+
+
+Concept 2: Python-like language
+-------------------------------
 
 ::
 
