@@ -1,0 +1,252 @@
+PEP: 497
+Title: Enhanced handling of external requirements
+Version: $Revision$
+Last-Modified: $Date$
+Author: Tennessee Leeuwenburg <tleeuwenburg@gmail.com>,
+
+Status: Draft
+Type: Standards Track
+Python-Version 3.6
+Content-Type: text/x-rst
+Created: 03-Aug-2015
+Post-History: 03-Aug-2015
+
+
+Abstract
+========
+
+The canonical method for installing packages is to use pip, whether that is
+referencing PyPI or a local repository. A limitation of the current install
+ecosystem is the relationship with operating-system level dependencies. This
+can result in compilation failures or execution failures. Package maintainers
+may wish to specify the requirements to avoid this issue, and users may
+appreciate earlier stopping and more informative messages about their system.
+
+The responsibility of pip is to stop early and provide useful information about
+missing and not automatically installable dependecies. Ideally it would provide
+a useful user message about how to obtain the required dependencies. The
+responsibility for actual installation lies with the user at this time.
+
+This PEP specifies an extension to the requirements sections of setup.py
+which will allow authors to express these requirements cleanly. In the
+implementation section, a discussion of how this is used to solved problems
+is given.
+
+Here is an example of the proposed syntax, where both operating system and build
+target specifiers are included.
+
+::
+
+    setup(
+        name='uses_scipy_with_atlas_extension'
+        install_requires='yaml, scipy[atlas]',
+        setup_requires='pyfortran',
+        external={
+          setup=[
+            'bin!fortran:dist_name=='ubuntu',
+            'include!kernel.h',
+            'include!liblas.h',
+          ],
+          install=[
+              'lib!liblas1.so'
+          ],
+       }
+    )
+
+It is believe this syntax provides one obvious way to do things which does not
+multiply the complexity or parts beyond those necessary to achieve the goal.
+
+In this example, the user will be presented with a useful install message and
+a process that exist early, as opposed to relying on the compiler to fail
+and provide an error message that may not be readily understood by most users
+
+The mechanism of referencing failed dependencies such as 'kernel.h' to useful
+user messages regarding the actual operating system packages that are relevant
+is discussed in the implementation section, along with the rationale for
+handling that referencing outside of setup.py.
+
+Rationale
+=========
+
+Different environment context have implications for the building, testing,
+installing and execution of software. There are two sides to this coin. First,
+in some environments, additional python packages are needed. Secondly,
+it is useful to specify, e.g., the apt or yum package names which need to be
+in place prior to continuing. The syntax proposed here allows for a readable
+and consise expression of these requirements.
+
+Setuptools and pip should be modified to support the use case of installing
+the appropriate python packages as required depending on the specification.
+
+They should also support aborting an install with a useful error message if
+required dependecies are not installed in the environment. The responsibility
+for actually installing those required packages lies with the user.
+
+Ideally, and error message will display the package manager command required
+to add the missing environment dependencies.
+
+It is expected that this feature would be commonly used, particularly in
+scientific applications which frequently have complex interactions with
+externally provided libraries. An example would be needing a version of
+numpy and scipy both of which have been compiled to be aware of the ATLAS
+compiled set of linear algebra libraries for performance reasons. This sounds
+esoteric but is, in fact, a routinely encountered situation which drives
+people towards using the anaconda scientific python environment since it
+actually solves these issues.
+
+Syntax
+======
+
+The valid context specifiers are taken from the environment markers library.
+This command says that when the operating system matches 'ubuntu', then add
+the yaml==0.3 requirement to the list.
+
+Implementation
+==============
+
+A common user experience is to attempt the installation of software in a
+basic environment, and for the installation to fail during the compilation
+of a dependency. The user is presented with an error message provided by the
+compiler. Not all users have the ability to understand these messages, and
+a common experience is to spend time searching online for the appopriate
+package which is provided by the vendor.
+
+The base implementation will also only provide information about missing
+headers, libraries or executables. This is a step forward in that the error
+message is provided very early in the install process, rather than potentially
+many minutes in to a large compile job.
+
+A key aspect of the usability of this tool is a mechanism to provide more useful
+information to the user about how to obtain those missing resources.
+The proposal is to provide a layer inside of pip which is capable of providing
+information about appropriate package names. It is surprising that vendors
+do not already provide a good tool for this, given that finding appropriate
+header and library files is a common experience in the general linux ecosystem.
+However, it is also a critical aspect of the user experience, and something
+which package maintainers will need to be able to specify precisely. The
+proposed approach would be for pip to supply the ability to install an
+inference layer, usable by users and vendors alike. Usage would be along
+the lines of
+
+    pip install_vendor_magic darwin
+
+This would transform the user messages relating to missing dependencies from
+
+    Could not find libatlas.so
+
+to
+
+    Could not find libatlas.so. Run 'port install scipy +atlas'
+
+
+Discussion
+==========
+
+This section is incomplete. Feedback appreciated on relevant discussion
+points that should be included.
+
+Specification of files (headers, libs, bins) vs packages
+--------------------------------------------------------
+
+There was a discussion about whether specific dependencies (named headers,
+libraries, binaries etc) should be included, or whether general package names
+(such as may be expected by yum, apt, conda) were appropriate. Due to the
+number of package management tools, plus the changing nature of those, it
+was decided that concentrating on the specific files was more useful than
+using package names. It also provides looser coupling between the specification
+of externals and the package management tools.
+
+Location in setup.py rather than requirements.txt
+-------------------------------------------------
+
+Requirements.txt is scoped to the use for local deployments to specify
+requirements precisely for the relevant local environment. Setup.py is the
+appropriate place to specify the information for the package in general.
+
+In future, there may be some scope for including similar directives within
+requirements.txt, but that is out of scope for this PEP.
+
+
+Addition of vendor inference layer
+----------------------------------
+
+Bearing in mind the discussion about using specific dependencies, the ideal
+user experience is to get a useful message about how to get the package
+installed on their system. This means providing a message which is relevant
+for their package management environment (e.g. yum, apt, conda). Each
+distributor would be expected to provide an inference lookup which can be
+installed into pip which would assist with identifying the packages which
+are associated with the named dependencies.
+
+
+Types of environment and vendor
+-------------------------------
+
+Anaconda is not an operation system. Neither is yum, neither is apt. It is the
+maintainer of the packaging system which is pertinent, and the current operating
+system is an imperfect indicator of the relevant package manager. 
+
+
+Directories, categories and locations of dependency files
+---------------------------------------------------------
+
+The proposed mechanism allows introspection of the standard location for
+packages. On *nix environments, these would be (for example), /usr/bin,
+/usr/local/include etc (see https://www.gnu.org/prep/standards/html_node/Directory-Variables.html
+for a discussion of standard directories). Non-standard dependency locations
+would be supported only via the underlying platform's mechanisms for exposing
+these details, such as PATH, LD_LIBRARY_PATH etc. This PEP does not include
+generalised configuration and specification of dependencies in non-standard
+or customised locations.
+
+
+
+Alternative Syntax Concept
+==========================
+
+One early straw man for the syntax is included here for reference during
+discussions. The chosen approach is based off approaching a small dsl for
+handling the specification, which may also point to future directions that
+could be taken in requirements.txt.
+
+::
+
+    setup(
+        install_requires='yaml',
+        setup_requires='pyfortran',
+        os_requires=[
+            ['fortran', type='bin', os='ubuntu', 'target=build'],
+            ['kernel.h', type='header', os='linux', target='build'],
+            ['libblas.o', type='lib', target='run']
+            ['scipy +atlas', type='packagename', target='run', os='darwin']
+        ]
+    )
+
+
+References
+==========
+
+.. [1] PEP 426, Metadata for Python Software Packages, Coghlan, Holth, Stufft
+   (http://www.python.org/dev/peps/pep-0426)
+
+.. [2] PEP 345, Sample Plaintext PEP Template, Warsaw
+   (http://www.python.org/dev/peps/pep-0009)
+
+.. [3] Pull request 29 on interoperability-peps
+
+
+Copyright
+=========
+
+This document has been placed in the public domain.
+
+
+
+..
+   Local Variables:
+   mode: indented-text
+   indent-tabs-mode: nil
+   sentence-end-double-space: t
+   fill-column: 70
+   coding: utf-8
+   End:
