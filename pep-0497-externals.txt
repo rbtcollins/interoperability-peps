@@ -23,34 +23,30 @@ may wish to specify the requirements to avoid this issue, and users may
 appreciate earlier and more informative messages about their system.
 
 The responsibility of pip is to stop early and provide useful information about
-missing and not automatically installable dependecies. Ideally it would provide
+missing (and not automatically installable) dependencies. Ideally it would provide
 a useful user message about how to obtain the required dependencies. The
 responsibility for actual installation lies with the user at this time.
 
 This PEP proposes a mechanism for extending the requirements section of setup.py
 which will allow authors to express non-Python requirements cleanly. In the
-implementation section, a discussion of how this is used to solved problems
+implementation section, a discussion of how this may be used to solved problems
 is given.
 
 Here is an example of the proposed syntax, where both operating system and build
-target specifiers are included.
+target specifiers are included. This is "Concept 1" of the alternatives discussed
+later in the document.
 
 ::
 
     setup(
         name='uses_scipy_with_atlas_extension'
-        install_requires='yaml, scipy[atlas]',
-        setup_requires='pyfortran',
-        external={
-          setup=[
-            'bin!fortran:dist_name=='ubuntu',
+        install_requires=['yaml', 'scipy[atlas]', 'lib!libblas1.so'],
+        setup_requires=[
+            'pyfortran',
+            'bin!fortran:dist_name=="ubuntu"',
             'include!kernel.h',
             'include!liblas.h',
           ],
-          install=[
-              'lib!liblas1.so'
-          ],
-       }
     )
 
 
@@ -69,10 +65,10 @@ Rationale
 
 Differences between environments have implications for the building, testing,
 installing and execution of software. There are two sides to this coin. First,
-in some environments, additional Python packages are needed. Secondly,
-it is useful to specify, e.g., the apt or yum package names which need to be
-in place prior to continuing. The syntax proposed here allows for a readable
-and consise expression of these requirements.
+in some environments, additional Python packages are needed. Secondly, in some
+environments, additional non-Python packages need to be present, such as header
+files, libraries, scripts or other binaries. The syntax proposed here allows
+the description of both sorts of requirements in a single syntax.
 
 Setuptools and pip should be modified to support the use case of installing
 the appropriate python packages as required depending on the specification.
@@ -81,17 +77,21 @@ They should also support aborting an install with a useful error message if
 required dependecies are not installed in the environment. The responsibility
 for actually installing those required packages lies with the user.
 
+This would allow automatic installation of environment-specific Python
+dependencies and pave the way to improving how users go about installing
+non-Python prerequisites.
+
 Ideally, and error message will display the package manager command required
 to add the missing environment dependencies.
 
 It is expected that this feature would be commonly used, particularly in
 scientific applications which frequently have complex interactions with
-externally provided libraries. An example would be needing a version of
-numpy and scipy both of which have been compiled to be aware of the ATLAS
+externally provided libraries. An example would be needing versions of
+numpy and scipy, both of which must have been compiled to be aware of the ATLAS
 compiled set of linear algebra libraries for performance reasons. This sounds
 esoteric but is, in fact, a routinely encountered situation which drives
-people towards using the anaconda scientific python environment since it
-actually solves these issues.
+people towards using the alternative packaging for scientific python
+environments.
 
 Syntax
 ======
@@ -100,8 +100,45 @@ The valid context specifiers are taken from the environment markers library.
 This command says that when the operating system matches 'ubuntu', then add
 the yaml==0.3 requirement to the list.
 
-Implementation
-==============
+Meta: I am not a syntax wizard and will need help from others to properly specify
+the syntax as a formal grammar if that is required.
+
+Essentially, the "!" separator is used to flag key-value pairs which will allow
+two things: the specification of dependency type and the environment context
+where the rule should apply.
+
+For example, consider the line
+
+    setup_requires=['bin!fortran:dist_name=="ubuntu"']
+
+The 'bin' specifies one of "bin", "lib" or "header", representing the only
+non-Python dependency types allows. The absence of this prefix implies the the
+package name is a discoverable Python package.
+
+Following the ':' is a comma-separated list of key-operator-value pairs. These
+represent the sufficient trigger conditions to apply the rule. At this stage
+only a very limited set of allowable operators and logics are permitted. The
+goal is to provide just enough support to allow the specification of key
+dependencies for specific environments, not to become a make/build system.
+
+Implementation Concerns
+=======================
+
+Short Version
+-------------
+
+1. Setuptool + pip should display relevant information earlier than now
+2. A mechanism to assist in identifying external package names would be useful
+3. The maintenance burden for (2) should fall on the package management system
+   maintainers, not on pip/setuptools developers
+4. This means a simple pluging approach to mapping from specific resources
+   to relevant external package names and invocation calls
+5. I propose this looks like "pip install vendor_magic darwin"
+6. And that the various O/Ses ship this pre-installed in their distributions
+
+
+Discussion
+----------
 
 A common user experience is to attempt the installation of software in a
 basic environment, and for the installation to fail during the compilation
@@ -127,7 +164,7 @@ proposed approach would be for pip to supply the ability to install an
 inference layer, usable by users and vendors alike. Usage would be along
 the lines of
 
-    pip install_vendor_magic darwin
+    pip install vendor_magic darwin
 
 This would transform the user messages relating to missing dependencies from
 
@@ -141,8 +178,8 @@ to
 Discussion
 ==========
 
-This section is incomplete. Feedback appreciated on relevant discussion
-points that should be included.
+This section will be updated to capture incoming feedback and represents a
+snapshot of the current concerns.
 
 Specification of files (headers, libs, bins) vs packages
 --------------------------------------------------------
@@ -206,7 +243,14 @@ Alternative Syntax Concepts
 Concept 0: Separated external and non-external dependencies
 -----------------------------------------------------------
 
-As per abstract
+This is an early-stage syntax. Concept 1 replaces it as the current
+"front runner" as implementation candidate and is included in the abstract.
+
+The advantage of Concept 0 is that is clearly separates the non-Python
+dependency specification into an isolated part of the configuration arguments,
+reducing the potential for confusion between external and internal dependencies.
+This may assist during implementation as no 'sniffer' will be needed to
+determine whether a named package is internal or external.
 
 ::
 
@@ -229,6 +273,12 @@ As per abstract
 Concept 1: Integrate external and non-external dependencies
 -----------------------------------------------------------
 
+A good argument for integrating these is that it will allow extensions
+to requirements.txt without needing a separate file to exist for the externals.
+It is shorter and still highly readable. Potentially instead of e.g. "lib!"
+for a prefix, "extlib!" could be used to signpost more strongly. But it's
+longer.
+
 ::
 
     setup(
@@ -245,6 +295,12 @@ Concept 1: Integrate external and non-external dependencies
 
 Concept 2: Python-like language
 -------------------------------
+
+This isn't really valid code and is included mainly to document the development
+of ideas. It illustrates an alternative structure to using separate config
+areas for setup, install etc and treats those as a part of the trigger
+for a particular dependency, called the target. There is still some advantage
+to the clarity and flexibility provided by this approach.
 
 ::
 
