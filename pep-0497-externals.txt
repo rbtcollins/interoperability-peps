@@ -1,5 +1,5 @@
 PEP: 497
-Title: External and environment-specific dependencies
+Title: External dependencies
 Version: $Revision$
 Last-Modified: $Date$
 Author: Tennessee Leeuwenburg <tleeuwenburg@gmail.com>,
@@ -11,30 +11,47 @@ Content-Type: text/x-rst
 Created: 03-Aug-2015
 Post-History: 03-Aug-2015
 
+Very Short Abstract
+===================
+
+This PEP covers three things.
+
+1. How users can specify external dependencies in setup.py
+2. How users can specify external dependencies in requirements.txt
+3. How external dependencies will be communicated between tools,
+   (setuptools --> wheel, wheel --> pip, ...)
+
+It recommends additional syntax to specify the requirements, implementation
+recommendations on how to provide appropriate messages to users, and relevant
+detailed discussion on technical issues. Where only setup.py is referenced,
+the scope should be taken to include requirements.txt unless otherwise
+mentioned.
 
 Abstract
 ========
 
-The canonical method for installing Python packages is to use pip, whether that
-is referencing PyPI or a local repository. A limitation of the current install
-ecosystem is the relationship with non-Python dependencies. This
-can result in compilation failures or execution failures. Package maintainers
-may wish to specify the requirements to avoid this issue, and users may
-appreciate earlier and more informative messages about their system.
+The canonical method for installing Python packages is to use pip and/or
+setuptools, whether that is referencing PyPI or a local repository. A limitation
+of the current install ecosystem is the relationship with non-Python
+dependencies. This can result in compilation failures or execution failures.
+Package maintainers may wish to specify the requirements to avoid this issue,
+and users may appreciate earlier and more informative messages about their
+system.
 
 The responsibility of pip is to stop early and provide useful information about
 missing (and not automatically installable) dependencies. Ideally it would provide
 a useful user message about how to obtain the required dependencies. The
 responsibility for actual installation lies with the user at this time.
 
-This PEP proposes a mechanism for extending the requirements section of setup.py
-which will allow authors to express non-Python requirements cleanly. In the
-implementation section, a discussion of how this may be used to solved problems
-is given.
+This PEP proposes a mechanism for extending the requirements section of
+setup.py, and the content of requirements.txt, which will allow authors to
+express non-Python requirements cleanly. In the implementation section, a
+discussion of how this may be used to solve problems is given.
 
-Here is an example of the proposed syntax, where both operating system and build
-target specifiers are included. This is "Concept 1" of the alternatives discussed
-later in the document.
+Here is an example of the proposed syntax for setup.py, where both operating
+system and build target specifiers are included. This is "Concept 1" of the
+alternatives discussed later in the document. The syntax for requirements.txt
+is similar, and is included later in the document.
 
 ::
 
@@ -48,7 +65,6 @@ later in the document.
             'include!liblas.h',
           ],
     )
-
 
 If the user does not have the required dependencies, the user will be presented
 with a useful install message and a process that exits early, as opposed to
@@ -81,31 +97,33 @@ This would allow automatic installation of environment-specific Python
 dependencies and pave the way to improving how users go about installing
 non-Python prerequisites.
 
-Ideally, and error message will display the package manager command required
+Ideally, any error messages will include the package manager command required
 to add the missing environment dependencies.
 
 It is expected that this feature would be commonly used, particularly in
 scientific applications which frequently have complex interactions with
-externally provided libraries. An example would be needing versions of
-numpy and scipy, both of which must have been compiled to be aware of the ATLAS
-compiled set of linear algebra libraries for performance reasons. This sounds
-esoteric but is, in fact, a routinely encountered situation which drives
-people towards using the alternative packaging for scientific python
-environments.
+externally provided libraries. The example provided in the abstract is a
+hypothetical package which needs versions of numpy and scipy, both of which
+must have been compiled to be aware of the ATLAS compiled set of linear algebra
+libraries (for performance reasons). This sounds esoteric but is, in fact, a
+routinely encountered situation which drives people towards using the
+alternative packaging for scientific python environments.
 
 Syntax
 ======
 
-The valid context specifiers are taken from the environment markers library.
-This command says that when the operating system matches 'ubuntu', then add
-the yaml==0.3 requirement to the list.
+The proposed syntax is an external object type, an "!", and then an external
+object name. The object type can be one of:
 
-Meta: I am not a syntax wizard and will need help from others to properly specify
-the syntax as a formal grammar if that is required.
+    include
+    bin
+    lib
 
-Essentially, the "!" separator is used to flag key-value pairs which will allow
-two things: the specification of dependency type and the environment context
-where the rule should apply.
+The object name should be the name of the required thing - search paths are
+presumed to be used to find the object.
+
+These dependencies may be controlled via environment markers in the standard
+fashion (see PEP 496).
 
 For example, consider the line
 
@@ -113,13 +131,8 @@ For example, consider the line
 
 The 'bin' specifies one of "bin", "lib" or "header", representing the only
 non-Python dependency types allows. The absence of this prefix implies the the
-package name is a discoverable Python package.
-
-Following the ':' is a comma-separated list of key-operator-value pairs. These
-represent the sufficient trigger conditions to apply the rule. At this stage
-only a very limited set of allowable operators and logics are permitted. The
-goal is to provide just enough support to allow the specification of key
-dependencies for specific environments, not to become a make/build system.
+package name is a discoverable Python package. This rule is controlled via the
+environment marker syntax to apply only on the Ubuntu distribution.
 
 Implementation Concerns
 =======================
@@ -136,6 +149,64 @@ Short Version
 5. I propose this looks like "pip install vendor_magic darwin"
 6. And that the various O/Ses ship this pre-installed in their distributions
 
+Platform Abstraction
+--------------------
+
+Pip and setuptools cannot (and should not) be expected to provide detailed
+reasoning about the external environment and appropriate responses. Questions
+have arisen often about the degree to which the Python ecosystem build tools
+can or should auto-detect or otherwise handle the collection of external
+dependencies at build time.
+
+Extending the Python build and packaging system into the external environment
+space multiplies the responsibility of package authors excessively. The entities
+which are appropriately informed and resourced to handle the complexities
+of complex build needs are the environment tool maintainers.
+
+The issue that is being solved is a reasonable communications layer by which
+information can be shared between those two separated ecosystems. Python
+package maintainers who are aware they are building a system-dependent package
+can take steps to represent known critical dependencies in their configurations
+so that developers can discover these more easily when building or installing
+tools. This is, in part, due to the fact that standard build tools often fail
+late in the build process and themselves provide less information that is ideal
+to end users.
+
+Given the broad use of Python by many users, providing additional information
+here is extremely useful. Further, these tools provide the means for external
+package systems to respond appropriately to the dependency needs of Python
+packages.
+
+
+Setuptools
+----------
+
+Wheel
+-----
+
+Pip
+---
+
+Case sensitivity of specifiers
+------------------------------
+
+Hooks, stages and processes
+---------------------------
+
+1. Perform checks of availability of resources
+2. Provide a callback hook to external tools. These hooks can return either
+   failure (no recourse) or success (resource provided). In this way, it would
+   be possible to support logging (returns failure but has a useful side-effect)
+   or a problem-resolution response (actually installs the external dependency)
+3. If there are remaining unresolved dependencies, proceed to an early exit
+4. Provide a callback hook indicating early exit along with appropriate
+   messaging indicating the unresolved external dependencies
+5. Provide final messages to the user
+
+The vendor magic layer would be implemented as a stage four callback tool which
+was capable of understanding the resource specifications and messaging, and
+supplement the standard pip/setuptools messaging with appropriate information
+for appropriate packages to install and/or suitable actions the user could take.
 
 Discussion of Implementation Concerns
 -------------------------------------
@@ -154,15 +225,15 @@ many minutes in to a large compile job.
 
 A key aspect of the usability of this tool is a mechanism to provide more useful
 information to the user about how to obtain those missing resources.
-The proposal is to provide a layer inside of pip which is capable of providing
-information about appropriate package names. It is surprising that vendors
-do not already provide a good tool for this, given that finding appropriate
-header and library files is a common experience in the general linux ecosystem.
-However, it is also a critical aspect of the user experience, and something
-which package maintainers will need to be able to specify precisely. The
-proposed approach would be for pip to supply the ability to install an
-inference layer, usable by users and vendors alike. Usage would be along
-the lines of
+The proposal is to provide a layer, consumed by pip, which is capable of
+providing information about appropriate package names. It is surprising that
+vendors do not already provide a good tool for this, given that finding
+appropriate header and library files is a common experience in the general
+linux ecosystem. However, it is also a critical aspect of the user experience,
+and something which package maintainers will need to be able to specify
+precisely. The proposed approach would be for pip to supply the ability to
+install an inference layer, usable by users and vendors alike. Usage would be
+along the lines of
 
     pip install vendor_magic darwin
 
@@ -170,9 +241,9 @@ This would transform the user messages relating to missing dependencies from
 
     Could not find libatlas.so
 
-to
+to, e.g.,
 
-    Could not find libatlas.so. Run 'port install scipy +atlas'
+    Could not find libatlas.so. Run 'port install atlas'
 
 
 Discussion / FAQ / Issues
@@ -228,11 +299,21 @@ distributor would be expected to provide an inference lookup which can be
 installed into pip which would assist with identifying the packages which
 are associated with the named dependencies.
 
+Implementation of the vendor inference layer
+--------------------------------------------
+
+There may be some advantage to regard the vendor inference layer as TBD in
+a future PEP due to the complexity and also in order to better focus the scope
+of the PEP. This externals PEP can proceed effectively without the vendor
+inference layer being implemented or specified. Alternatively, a separate PEP
+could be developed in tandem with this proposal to hold the apppropriate level
+of detail.
+
 
 Types of environment and vendor
 -------------------------------
 
-Anaconda is not an operation system. Neither is yum, neither is apt. It is the
+Anaconda is not an operating system. Neither is yum, neither is apt. It is the
 maintainer of the packaging system which is pertinent, and the current operating
 system is an imperfect indicator of the relevant package manager.
 
@@ -249,7 +330,20 @@ these details, such as PATH, LD_LIBRARY_PATH etc. This PEP does not include
 generalised configuration and specification of dependencies in non-standard
 or customised locations.
 
+The Python installation tools should honour those standard mechanisms.
+The details are per-platform and not specified by this specification
+(see Platform Abstraction for more on this point).
 
+Virtual Environment Concerns
+----------------------------
+
+This should work fine with virtual environments. Since the PEP draws the line
+at performing external package installation, it is up to package management
+tools to decide how to separate concerns between systemwide installation
+and virtual environment installation. For example, a system such as
+Anaconda which is heavily based around virtual environments is well capable
+of handling the installation of external dependencies into a virtual environment
+context.
 
 Alternative Syntax Concepts
 ==========================
@@ -292,6 +386,13 @@ to requirements.txt without needing a separate file to exist for the externals.
 It is shorter and still highly readable. Potentially instead of e.g. "lib!"
 for a prefix, "extlib!" could be used to signpost more strongly. But it's
 longer.
+
+Another advantage to this approach it that any tool which treats setup_requires
+(et al) as a list of opaque strings should "just work", while a separate field
+causes problems.
+
+Notably, this change should mostly be forwards compatible with the overall
+structure of PEP 426.
 
 ::
 
