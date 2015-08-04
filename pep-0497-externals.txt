@@ -1,5 +1,5 @@
 PEP: 497
-Title: Enhanced handling of external requirements
+Title: External and environment-specific dependencies
 Version: $Revision$
 Last-Modified: $Date$
 Author: Tennessee Leeuwenburg <tleeuwenburg@gmail.com>,
@@ -137,8 +137,8 @@ Short Version
 6. And that the various O/Ses ship this pre-installed in their distributions
 
 
-Discussion
-----------
+Discussion of Implementation Concerns
+-------------------------------------
 
 A common user experience is to attempt the installation of software in a
 basic environment, and for the installation to fail during the compilation
@@ -175,11 +175,12 @@ to
     Could not find libatlas.so. Run 'port install scipy +atlas'
 
 
-Discussion
-==========
+Discussion / FAQ / Issues
+=========================
 
 This section will be updated to capture incoming feedback and represents a
 snapshot of the current concerns.
+
 
 Specification of files (headers, libs, bins) vs packages
 --------------------------------------------------------
@@ -202,6 +203,19 @@ appropriate place to specify the information for the package in general.
 In future, there may be some scope for including similar directives within
 requirements.txt, but that is out of scope for this PEP.
 
+Prior Approaches
+----------------
+
+Some capacity to support description of external dependencies (among other
+things) was described in PEPs 314 and 345 (Metadata 1.1 and 1.2). These
+describe directives whichs can be placed in the PKG-INFO file. An implementation
+responding to these directives is pending.
+
+This PEP places the directives in setup.py. This approach is closer to the
+typical approach of package maintainers to expressing requirements and places
+the external dependency specification nearer to the Python dependency
+specification. This PEP would supercede PEPs 314 and 345 with respect to
+external dependencies.
 
 Addition of vendor inference layer
 ----------------------------------
