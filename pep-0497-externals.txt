@@ -2,7 +2,7 @@ PEP: 497
 Title: External dependencies
 Version: $Revision$
 Last-Modified: $Date$
-Author: Tennessee Leeuwenburg <tleeuwenburg@gmail.com>,
+Author: Tennessee Leeuwenburg <tleeuwenburg@gmail.com>, Robert Collins <rbtcollins@hp.com>
 
 Status: Draft
 Type: Standards Track
@@ -11,26 +11,35 @@ Content-Type: text/x-rst
 Created: 03-Aug-2015
 Post-History: 03-Aug-2015
 
-Very Short Abstract
-===================
+Abstract
+========
 
-This PEP covers three things.
+This PEP covers dealing with external dependencies in the Python packaging
+ecosystem.
+
+An `external dependency` is a dependency which `pip` / `ez_install` and so on
+cannot themselves install - and which for whatever reason we are not planning
+on teaching them how to install, but which may be installable by whatever
+platform package manager is being used by the user.
+
+There are three key interactions:
 
 1. How users can specify external dependencies in setup.py
 2. How users can specify external dependencies in requirements.txt
 3. How external dependencies will be communicated between tools,
-   (setuptools --> wheel, wheel --> pip, ...)
+   (setuptools --> wheel, wheel --> pip, twine -> pypi, ...)
 
-It recommends additional syntax to specify the requirements, implementation
-recommendations on how to provide appropriate messages to users, and relevant
-detailed discussion on technical issues. Where only setup.py is referenced,
-the scope should be taken to include requirements.txt unless otherwise
-mentioned.
+We define:
 
-Abstract
-========
+1. An extension to the existing distribution syntax used to refer to Python
+   dependencies.
+2. A protocol for pip and other tools to discover and interact with a platform
+   package manager.
 
-The canonical method for installing Python packages is to use pip and/or
+Rationale
+=========
+
+The canonical method for installing Python packages is to use pip[4]_.
 setuptools, whether that is referencing PyPI or a local repository. A limitation
 of the current install ecosystem is the relationship with non-Python
 dependencies. This can result in compilation failures or execution failures.
@@ -441,6 +450,9 @@ References
    (http://www.python.org/dev/peps/pep-0009)
 
 .. [3] Pull request 29 on interoperability-peps
+
+.. [4] PEP 453, Explicit bootstrapping of pip in Python installations.
+   http://www.python.org/dev/peps/pep-0453/
 
 
 Copyright
